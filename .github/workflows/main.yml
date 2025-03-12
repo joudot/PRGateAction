@@ -12,20 +12,32 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v2
 
-    - name: List markdown files
+    - name: Get list of changed files
+      id: changed-files
       run: |
-        find . -name "*.md" > markdown_files.txt
+        changed_files=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }})
+        echo "::set-output name=files::$changed_files"
 
     - name: Check TOC references
       run: |
         missing_files=()
-        while IFS= read -r file; do
-          if ! grep -q "$file" toc.yml; then
-            missing_files+=("$file")
+        for file in ${{ steps.changed-files.outputs.files }}; do
+          if [[ $file == *.md ]]; then
+            folder=$(dirname "$file")
+            toc_file="$folder/toc.yml"
+            if [ -f "$toc_file" ]; then
+              if ! grep -q "$file" "$toc_file"; then
+                missing_files+=("$file")
+              fi
+            else
+              echo "TOC file not found in $folder"
+              exit 1
+            fi
           fi
-        done < markdown_files.txt
+        done
+
         if [ ${#missing_files[@]} -ne 0 ]; then
-          echo "The following markdown files are missing in toc.yml:"
+          echo "The following markdown files are missing in their respective toc.yml:"
           for file in "${missing_files[@]}"; do
             echo "$file"
           done
