@@ -16,7 +16,7 @@ jobs:
       id: changed-files
       run: |
         changed_files=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }})
-        echo "::set-output name=files::$changed_files"
+        echo "files=$changed_files" >> $GITHUB_OUTPUT
 
     - name: Check TOC references
       run: |
