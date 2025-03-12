@@ -1,0 +1,33 @@
+name: Check TOC References
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+jobs:
+  check-toc:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v2
+
+    - name: List markdown files
+      run: |
+        find . -name "*.md" > markdown_files.txt
+
+    - name: Check TOC references
+      run: |
+        missing_files=()
+        while IFS= read -r file; do
+          if ! grep -q "$file" toc.yml; then
+            missing_files+=("$file")
+          fi
+        done < markdown_files.txt
+        if [ ${#missing_files[@]} -ne 0 ]; then
+          echo "The following markdown files are missing in toc.yml:"
+          for file in "${missing_files[@]}"; do
+            echo "$file"
+          done
+          exit 1
+        fi
