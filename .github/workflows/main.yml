@@ -18,7 +18,9 @@ jobs:
       id: changed-files
       run: |
         changed_files=$(git diff --name-only ${{ github.event.pull_request.base.sha }} ${{ github.sha }})
-        echo "changed_files=$changed_files" >> $GITHUB_ENV
+        echo "changed_files<<EOF" >> $GITHUB_ENV
+        echo "$changed_files" >> $GITHUB_ENV
+        echo "EOF" >> $GITHUB_ENV
 
     - name: Check TOC references
       run: |
