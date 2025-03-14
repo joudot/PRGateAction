@@ -17,7 +17,7 @@ jobs:
     - name: Get list of changed files
       id: changed-files
       run: |
-        changed_files=$(git diff --name-only ${{ github.event.pull_request.base.sha }} ${{ github.sha }})
+        changed_files=$(git diff --name-only ${{ github.event.pull_request.base.sha }} ${{ github.sha }} | grep '\.md$')
         echo "changed_files<<EOF" >> $GITHUB_ENV
         echo "$changed_files" >> $GITHUB_ENV
         echo "EOF" >> $GITHUB_ENV
@@ -26,17 +26,15 @@ jobs:
       run: |
         missing_files=()
         while IFS= read -r file; do
-          if [[ $file == *.md ]]; then
-            folder=$(dirname "$file")
-            toc_file="$folder/toc.yml"
-            if [ -f "$toc_file" ]; then
-              if ! grep -q "href: $file" "$toc_file"; then
-                missing_files+=("$file")
-              fi
-            else
-              echo "TOC file not found in $folder"
-              exit 1
+          folder=$(dirname "$file")
+          toc_file="$folder/toc.yml"
+          if [ -f "$toc_file" ]; then
+            if ! grep -q "href: $file" "$toc_file"; then
+              missing_files+=("$file")
             fi
+          else
+            echo "TOC file not found in $folder"
+            exit 1
           fi
         done < <(echo "${{ steps.changed-files.outputs.changed_files }}")
 
