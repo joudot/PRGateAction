@@ -18,12 +18,16 @@ jobs:
       id: changed-files
       run: |
         changed_files=$(git diff --name-only ${{ github.event.pull_request.base.sha }} ${{ github.sha }})
-        echo "::set-output name=files::$changed_files"
+        echo "changed_files=$changed_files" >> $GITHUB_ENV
+
+    - name: Set changed files output
+      id: set-changed-files
+      run: echo "files=${{ env.changed_files }}" >> $GITHUB_ENV
 
     - name: Check TOC references
       run: |
         missing_files=()
-        for file in ${{ steps.changed-files.outputs.files }}; do
+        for file in ${{ steps.set-changed-files.outputs.files }}; do
           if [[ $file == *.md ]]; then
             folder=$(dirname "$file")
             toc_file="$folder/toc.yml"
