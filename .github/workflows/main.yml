@@ -18,6 +18,10 @@ jobs:
       id: changed-files
       run: |
         changed_files=$(git diff --name-only ${{ github.event.pull_request.base.sha }} ${{ github.sha }} | grep '\.md$')
+        if [ -z "$changed_files" ]; then
+          echo "No markdown files changed."
+          exit 0
+        fi
         echo "changed_files<<EOF" >> $GITHUB_ENV
         echo "$changed_files" >> $GITHUB_ENV
         echo "EOF" >> $GITHUB_ENV
@@ -26,6 +30,9 @@ jobs:
       run: |
         missing_files=()
         while IFS= read -r file; do
+          if [ -z "$file" ]; then
+            continue
+          fi
           folder=$(dirname "$file")
           toc_file="$folder/toc.yml"
           if [ -f "$toc_file" ]; then
