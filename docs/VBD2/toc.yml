@@ -2,6 +2,6 @@
 - name: My Page Name
   href: test2.md
 - name: My Page 2
-  href: test1.md
-- name: My Page 2
   href: test3.md
+- name: My Page 1
+  href: test1.md
