@@ -10,36 +10,94 @@ jobs:
 
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
 
     - name: Get list of changed files
       id: changed-files
       run: |
-        changed_files=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }})
-        echo "::set-output name=files::$changed_files"
+        git fetch origin ${{ github.event.pull_request.base.ref }} --depth=1
+        changed_files=$(git diff --name-only origin/${{ github.event.pull_request.base.ref }} ${{ github.sha }} | grep '\.md$' || echo "")
+        echo "changed_files<<EOF" >> $GITHUB_OUTPUT
+        echo "$changed_files" >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y uchardet
 
     - name: Check TOC references
       run: |
+        if [ -z "${{ steps.changed-files.outputs.changed_files }}" ]; then
+          echo "No markdown files changed."
+          exit 0
+        fi
+
         missing_files=()
-        for file in ${{ steps.changed-files.outputs.files }}; do
-          if [[ $file == *.md ]]; then
-            folder=$(dirname "$file")
-            toc_file="$folder/toc.yml"
-            if [ -f "$toc_file" ]; then
-              if ! grep -q "$file" "$toc_file"; then
-                missing_files+=("$file")
-              fi
-            else
-              echo "TOC file not found in $folder"
-              exit 1
-            fi
+        while IFS= read -r file; do
+          if [ -z "$file" ]; then
+            continue
           fi
-        done
+          
+          # Get filename only without path
+          filename=$(basename "$file")
+          # Get directory path
+          folder=$(dirname "$file")
+          toc_file="$folder/toc.yml"
+          
+          if [ -f "$toc_file" ]; then
+            # Auto-detect file encoding
+            encoding=$(uchardet "$toc_file")
+            echo "Detected encoding for $toc_file: $encoding"
+            
+            # Create a normalized UTF-8 version of the file for processing
+            temp_toc=$(mktemp)
+            
+            # Try different encodings based on detection or fall back to common ones
+            if [ "$encoding" == "UTF-16LE" ]; then
+              iconv -f UTF-16LE -t UTF-8 "$toc_file" > "$temp_toc" 2>/dev/null
+            elif [ "$encoding" == "UTF-16BE" ]; then
+              iconv -f UTF-16BE -t UTF-8 "$toc_file" > "$temp_toc" 2>/dev/null
+            elif [ "$encoding" == "UTF-8" ] || [ "$encoding" == "ASCII" ]; then
+              cp "$toc_file" "$temp_toc"
+            else
+              # Try common encodings if detection failed or returned something uncommon
+              iconv -f UTF-8 -t UTF-8 "$toc_file" > "$temp_toc" 2>/dev/null || \
+              iconv -f UTF-16LE -t UTF-8 "$toc_file" > "$temp_toc" 2>/dev/null || \
+              iconv -f UTF-16BE -t UTF-8 "$toc_file" > "$temp_toc" 2>/dev/null || \
+              cp "$toc_file" "$temp_toc"
+            fi
+            
+            echo "Looking for filename: $filename in TOC file"
+            
+            # Show converted content for debugging
+            echo "Converted TOC content:"
+            cat "$temp_toc"
+            
+            # Use the normalized file for pattern matching
+            if grep -q "href:.*$filename" "$temp_toc"; then
+              echo "✅ File $file is referenced in $toc_file"
+              echo "Match found: $(grep -E "href:.*$filename" "$temp_toc" | head -1)"
+            else
+              missing_files+=("$file")
+              echo "❌ File $file is NOT referenced in $toc_file"
+            fi
+            
+            # Clean up temp file
+            rm "$temp_toc"
+          else
+            echo "⚠️ Warning: TOC file not found in $folder"
+          fi
+        done <<< "${{ steps.changed-files.outputs.changed_files }}"
 
         if [ ${#missing_files[@]} -ne 0 ]; then
-          echo "The following markdown files are missing in their respective toc.yml:"
+          echo "::error::The following markdown files are missing in their respective toc.yml:"
           for file in "${missing_files[@]}"; do
-            echo "$file"
+            echo "::error::$file"
           done
           exit 1
+        else
+          echo "✅ All changed markdown files are properly referenced in their respective toc.yml files."
         fi
