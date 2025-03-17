@@ -23,6 +23,11 @@ jobs:
         echo "$changed_files" >> $GITHUB_OUTPUT
         echo "EOF" >> $GITHUB_OUTPUT
 
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y uchardet
+
     - name: Check TOC references
       run: |
         if [ -z "${{ steps.changed-files.outputs.changed_files }}" ]; then
@@ -43,26 +48,45 @@ jobs:
           toc_file="$folder/toc.yml"
           
           if [ -f "$toc_file" ]; then
-            # Debug - show raw file content
-            echo "TOC file contents (hex):"
-            hexdump -C "$toc_file" | head
+            # Auto-detect file encoding
+            encoding=$(uchardet "$toc_file")
+            echo "Detected encoding for $toc_file: $encoding"
             
-            # Convert to ASCII to handle potential encoding issues
-            toc_content=$(iconv -f utf-8 -t ascii//TRANSLIT "$toc_file" 2>/dev/null || cat "$toc_file")
+            # Create a normalized UTF-8 version of the file for processing
+            temp_toc=$(mktemp)
             
-            # Debug - show what we're looking for
-            echo "Looking for filename: $filename"
+            # Try different encodings based on detection or fall back to common ones
+            if [ "$encoding" == "UTF-16LE" ]; then
+              iconv -f UTF-16LE -t UTF-8 "$toc_file" > "$temp_toc" 2>/dev/null
+            elif [ "$encoding" == "UTF-16BE" ]; then
+              iconv -f UTF-16BE -t UTF-8 "$toc_file" > "$temp_toc" 2>/dev/null
+            elif [ "$encoding" == "UTF-8" ] || [ "$encoding" == "ASCII" ]; then
+              cp "$toc_file" "$temp_toc"
+            else
+              # Try common encodings if detection failed or returned something uncommon
+              iconv -f UTF-8 -t UTF-8 "$toc_file" > "$temp_toc" 2>/dev/null || \
+              iconv -f UTF-16LE -t UTF-8 "$toc_file" > "$temp_toc" 2>/dev/null || \
+              iconv -f UTF-16BE -t UTF-8 "$toc_file" > "$temp_toc" 2>/dev/null || \
+              cp "$toc_file" "$temp_toc"
+            fi
             
-            # Use more reliable pattern matching
-            if grep -q "href:.*$filename" "$toc_file"; then
+            echo "Looking for filename: $filename in TOC file"
+            
+            # Show converted content for debugging
+            echo "Converted TOC content:"
+            cat "$temp_toc"
+            
+            # Use the normalized file for pattern matching
+            if grep -q "href:.*$filename" "$temp_toc"; then
               echo "✅ File $file is referenced in $toc_file"
-              echo "Match found: $(grep -E "href:.*$filename" "$toc_file" | head -1 | tr -d '\r\n')"
+              echo "Match found: $(grep -E "href:.*$filename" "$temp_toc" | head -1)"
             else
               missing_files+=("$file")
               echo "❌ File $file is NOT referenced in $toc_file"
-              echo "Content of $toc_file:"
-              cat "$toc_file"
             fi
+            
+            # Clean up temp file
+            rm "$temp_toc"
           else
             echo "⚠️ Warning: TOC file not found in $folder"
           fi
