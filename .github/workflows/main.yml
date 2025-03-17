@@ -32,7 +32,7 @@ jobs:
 
         missing_files=()
         while IFS= read -r file; do
-          if [ -z "$file" ]; then
+          if [ -z "$file"; then
             continue
           fi
           
@@ -43,11 +43,15 @@ jobs:
           toc_file="$folder/toc.yml"
           
           if [ -f "$toc_file" ]; then
-            if ! grep -q "href: $filename" "$toc_file"; then
+            # More flexible pattern matching for YAML
+            if ! grep -q "href:[ ]*$filename" "$toc_file" && ! grep -q "href:[ ]*\"$filename\"" "$toc_file" && ! grep -q "href:[ ]*'$filename'" "$toc_file"; then
               missing_files+=("$file")
               echo "❌ File $file is NOT referenced in $toc_file"
+              echo "Content of $toc_file:"
+              cat "$toc_file"
             else
-              echo "✅ File $file is referenced in $toc_file: $(grep -A 1 "href: $filename" "$toc_file" | head -2)"
+              echo "✅ File $file is referenced in $toc_file"
+              echo "Match found: $(grep -E "href:[ ]*(\"?'?)$filename(\1)" "$toc_file" | head -1)"
             fi
           else
             echo "⚠️ Warning: TOC file not found in $folder"
