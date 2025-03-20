@@ -2,7 +2,7 @@ name: PR Assigner
 
 on:
   pull_request:
-    types: [opened, reopened]
+    types: [opened, synchronize, reopened]
 
 jobs:
   assign:
@@ -15,7 +15,7 @@ jobs:
           script: |
             // Add all usernames you want as assignees to this array
             const assignees = [
-              'juoudot',
+              'joudot',
               'another-username',
               'third-username',
               'fourth-username'
