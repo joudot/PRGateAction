@@ -11,7 +11,7 @@ jobs:
       - name: Auto Assign PR
         uses: actions/github-script@v6
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          github-token: ${{ secrets.PAT_TOKEN }}
           script: |
             // Add all usernames you want as assignees to this array
             const assignees = [
