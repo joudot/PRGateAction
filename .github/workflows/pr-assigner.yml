@@ -8,22 +8,47 @@ jobs:
   assign:
     runs-on: ubuntu-latest
     steps:
-      - name: Auto Assign PR
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+
+      - name: Auto Assign PR for specific folder
         uses: actions/github-script@v6
         with:
           github-token: ${{ secrets.PAT_TOKEN }}
           script: |
             // Add all usernames you want as assignees to this array
             const assignees = [
-              'joudot',
-              'another-username',
-              'third-username',
-              'fourth-username'
+              'joudot'
             ];
             
-            github.rest.issues.addAssignees({
+            // Target folder
+            const targetFolder = 'docs/VBD2/';
+            
+            // Get the list of files changed in this PR
+            const { data: files } = await github.rest.pulls.listFiles({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              issue_number: context.issue.number,
-              assignees: assignees
+              pull_number: context.issue.number,
             });
+            
+            // Check if any file is in the target folder
+            const hasTargetFolderChanges = files.some(file => file.filename.startsWith(targetFolder));
+            
+            console.log(`Files changed in PR: ${files.map(f => f.filename).join(', ')}`);
+            console.log(`Changes in target folder "${targetFolder}": ${hasTargetFolderChanges}`);
+            
+            // Only assign people if the target folder has changes
+            if (hasTargetFolderChanges) {
+              console.log(`Assigning PR to: ${assignees.join(', ')}`);
+              await github.rest.issues.addAssignees({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                assignees: assignees
+              });
+            } else {
+              console.log('No changes in target folder, skipping assignment');
+            }
